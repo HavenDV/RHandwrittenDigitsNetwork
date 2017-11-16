@@ -20,7 +20,7 @@ m <- dim(X)[1]
 
 # Randomly select 100 data points to display and display it
 sel <- X[sample(nrow(X),size = 100),]
-displayData(sel);
+displayDataArray(sel);
 
 ## ================ Part 2: Loading Pameters ================
 cat('Loading Saved Neural Network Parameters ...\n')
@@ -34,4 +34,22 @@ Theta2 <- weights[["Theta2"]]
 pred <- predict(Theta1, Theta2, X);
 
 compared <- apply(pred,2,`==`,y)
-cat(paste('Training Set Accuracy: \n', mean(as.double(compared)) * 100));
+cat(paste('Training Set Accuracy: \n', mean(as.double(compared)) * 100))
+
+pause()
+
+## ================= Part 4: Test =================
+#  Randomly permute examples
+rp <- X[sample(nrow(X)),];
+for (i in 1:m) {
+  example <- t(matrix(rp[i,]))
+  # Display 
+  cat('Displaying Example Image\n')
+  displayData(example);
+
+  # Prediction
+  pred <- predict(Theta1, Theta2, example)
+  cat(paste('\nNeural Network Prediction: ', pred));
+  
+  pause()
+}

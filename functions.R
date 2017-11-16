@@ -1,20 +1,33 @@
-displayData <- function(sel) {
-  full_img <- matrix(nrow = 0, ncol = 200)
-  for (i in 1:10) {
-    row <- matrix(nrow = 20, ncol = 0)
-    for (j in 1:10) {
-      img <- matrix(sel[10 * (i - 1) + j,], nrow = 20, ncol = 20)
+rotate <- function(x) t(apply(x, 2, rev))
+
+displayDataArray <- function(sel) {
+  n <- sqrt(nrow(sel))
+  width <- sqrt(nrow(matrix(sel[1,])))
+  height <- width
+  full_img <- matrix(nrow = 0, ncol = width * n)
+  for (i in 1:n) {
+    row <- matrix(nrow = height, ncol = 0)
+    for (j in 1:n) {
+      img <- matrix(sel[n * (i - 1) + j,], nrow = height, ncol = width)
       row <- cbind(row, img)
     }
     full_img <- rbind(full_img, row)
   }
-  rotate <- function(x) t(apply(x, 2, rev))
   full_img <- rotate(full_img)
   image(full_img, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
 }
 
+displayData <- function(sel) {
+  width <- sqrt(ncol(sel))
+  mat <- matrix(sel, nrow = width, ncol = width)
+  mat <- rotate(mat)
+  image(mat, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+}
+
 pause <- function() {
-  readline(prompt="Program paused. Press enter to continue.\n")
+  ANSWER <- readline(prompt="Program paused. Press enter to continue.\n")
+  if (substr(ANSWER, 1, 1) == "q")
+    stop("Interrupted")
 }
 
 sigmoid <- function(z) {
