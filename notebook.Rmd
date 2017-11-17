@@ -1,0 +1,81 @@
+---
+title: "Handwritten Digits Network"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  html_notebook: 
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+editor_options:
+  chunk_output_type: inline
+runtime: shiny
+---
+
+# Used libraries and includes
+```{r setup, cache = TRUE, message = FALSE, warning = FALSE}
+library(R.matlab)
+library(shiny)
+
+source("functions.R")
+```
+
+# Loading and Visualizing Data
+Loading data:
+```{r loading_data, cache = TRUE}
+data <- readMat("data.mat")
+X <- data[["X"]]
+y <- data[["y"]]
+m <- dim(X)[1]
+```
+
+Randomly select 100 data points to display:
+```{r display_data}
+displayDataArray(X[sample(nrow(X),size = 100),])
+```
+
+# Loading Parameters
+Load the weights into variables Theta1 and Theta2
+```{r loading_weights, cache = TRUE}
+weights <- readMat('weights.mat')
+Theta1 <- weights[["Theta1"]]
+Theta2 <- weights[["Theta2"]]
+```
+
+# Implement Predict
+Get prediction vector for each X value
+```{r predict}
+pred <- predict(Theta1, Theta2, X)
+```
+Training Set Accuracy: `r mean(as.double(apply(pred,2,'==',y))) * 100`
+
+# Test
+```{r test}
+displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
+    # Select random image
+    example <- t(matrix(X[sample(nrow(X), 1),]));
+    
+    # Display
+    displayData(example);
+    
+    # Prediction
+    return(c(predict(Theta1, Theta2, example)))
+}
+```
+
+```{r test_shiny, echo=FALSE}
+mainPanel(
+  actionButton("updateButton", "Update"),
+  renderPlot({
+    input$updateButton
+    
+    prediction <- displayRandomImageAndGetPrediction(Theta1, Theta2, X)
+    output$prediction <- renderText({ 
+      paste('Neural Network Prediction: ', prediction, '\n')
+    })
+  }, width = 200, height = 200),
+  textOutput("prediction")
+)
+```
