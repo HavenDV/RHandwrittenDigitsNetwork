@@ -1,5 +1,5 @@
 ## =========== Used libraries =========== 
-library(R.matlab)
+library(R.matlab, warn.conflicts = FALSE, quietly = TRUE)
         
 ## =========== Includes =========== 
 source("functions.R")
@@ -22,7 +22,7 @@ m <- dim(X)[1]
 sel <- X[sample(nrow(X),size = 100),]
 displayDataArray(sel);
 
-## ================ Part 2: Loading Pameters ================
+## ================ Part 2: Loading Parameters ================
 cat('Loading Saved Neural Network Parameters ...\n')
 
 # Load the weights into variables Theta1 and Theta2
