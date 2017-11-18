@@ -17,10 +17,10 @@ runtime: shiny
 
 # Used libraries and includes
 ```{r setup, cache = TRUE, message = FALSE, warning = FALSE}
-library(R.matlab)
-library(shiny)
+library(R.matlab) #For readMat
+library(shiny)    #For renderPlot, actionButton, textOutput, renderText
 
-source("functions.R")
+source('functions.R') # For displayDataArray, displayData, predict
 ```
 
 # Session Info
@@ -31,9 +31,9 @@ sessionInfo()
 # Loading and Visualizing Data
 Loading data:
 ```{r loading_data, cache = TRUE}
-data <- readMat("data.mat")
-X <- data[["X"]]
-y <- data[["y"]]
+data <- readMat('data/data.mat')
+X <- data[['X']]
+y <- data[['y']]
 m <- dim(X)[1]
 ```
 
@@ -42,22 +42,23 @@ Randomly select 100 data points to display:
 displayDataArray(X[sample(nrow(X),size = 100),])
 ```
 
-# Loading Parameters
+# Already trained
+## Loading Parameters
 Load the weights into variables Theta1 and Theta2
 ```{r loading_weights, cache = TRUE}
-weights <- readMat('weights.mat')
-Theta1 <- weights[["Theta1"]]
-Theta2 <- weights[["Theta2"]]
+weights <- readMat('data/weights.mat')
+Theta1 <- weights[['Theta1']]
+Theta2 <- weights[['Theta2']]
 ```
 
-# Implement Predict
+## Implement Predict
 Get prediction vector for each X value
 ```{r predict}
 pred <- predict(Theta1, Theta2, X)
 ```
 Training Set Accuracy: `r mean(as.double(apply(pred,2,'==',y))) * 100`
 
-# Test
+## Test
 ```{r test}
 displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     # Select random image
@@ -80,8 +81,8 @@ renderPlot({
     paste('Neural Network Prediction: ', prediction, '\n')
   })
 }, width = 200, height = 200)
-actionButton("updateButton", "Update")
-textOutput("prediction")
+actionButton('updateButton', 'Update')
+textOutput('prediction')
 ```
 
 # License
