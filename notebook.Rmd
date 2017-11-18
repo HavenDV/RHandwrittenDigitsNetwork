@@ -15,29 +15,52 @@ editor_options:
 runtime: shiny
 ---
 
+<style>
+button.hidecode + pre {display: none}
+button.hideoutput + pre + pre {display: none}
+</style>
+
 # Used libraries and includes
 ```{r setup, cache = TRUE, message = FALSE, warning = FALSE}
-library(R.matlab) #For readMat
-library(shiny)    #For renderPlot, actionButton, textOutput, renderText
-
-source('functions.R') # For displayDataArray, displayData, predict
 ```
 
 # Session Info
-```{r session_info, cache = TRUE, collapse = TRUE}
+<button class="hidecode hideoutput" onclick="$(this).next().toggle(); $(this).next().next().toggle();">Session Info</button>
+```{r session_info, cache = TRUE}
 sessionInfo()
 ```
 
 # Loading and Visualizing Data
 Loading data:
 ```{r loading_data, cache = TRUE}
-data <- readMat('data/data.mat')
+data <- R.matlab::readMat('data/data.mat')
 X <- data[['X']]
 y <- data[['y']]
 m <- dim(X)[1]
 ```
 
 Randomly select 100 data points to display:
+<button class="hidecode" onclick="$(this).next().toggle();">Display Data Array Function</button>
+```{r display_data_array_function}
+rotate <- function(x) t(apply(x, 2, rev))
+
+displayDataArray <- function(sel) {
+  n <- sqrt(nrow(sel))
+  width <- sqrt(nrow(matrix(sel[1,])))
+  height <- width
+  full_img <- matrix(nrow = 0, ncol = width * n)
+  for (i in 1:n) {
+    row <- matrix(nrow = height, ncol = 0)
+    for (j in 1:n) {
+      img <- matrix(sel[n * (i - 1) + j,], nrow = height, ncol = width)
+      row <- cbind(row, img)
+    }
+    full_img <- rbind(full_img, row)
+  }
+  full_img <- rotate(full_img)
+  image(full_img, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+}
+```
 ```{r display_data}
 displayDataArray(X[sample(nrow(X),size = 100),])
 ```
@@ -46,20 +69,50 @@ displayDataArray(X[sample(nrow(X),size = 100),])
 ## Loading Parameters
 Load the weights into variables Theta1 and Theta2
 ```{r loading_weights, cache = TRUE}
-weights <- readMat('data/weights.mat')
+weights <- R.matlab::readMat('data/weights.mat')
 Theta1 <- weights[['Theta1']]
 Theta2 <- weights[['Theta2']]
 ```
 
 ## Implement Predict
 Get prediction vector for each X value
+<button class="hidecode" onclick="$(this).next().toggle();">Predict Function</button>
+```{r predict_function}
+sigmoid <- function(z) {
+  return(1.0 / (1.0 + exp(-z)))
+}
+
+predict <- function(Theta1, Theta2, X) {
+  m <- nrow(X)
+  extendedX <- cbind(matrix(1, m, 1), X)
+  z2 <- extendedX %*% t(Theta1)
+  a2 <- sigmoid(z2)
+  extendeda2 <- cbind(matrix(1, m, 1), a2)
+  z3 <- extendeda2 %*% t(Theta2)
+  h <- sigmoid(z3)
+  
+  return(matrix(apply(h, 1, which.max)))
+}
+```
+
 ```{r predict}
 pred <- predict(Theta1, Theta2, X)
 ```
 Training Set Accuracy: `r mean(as.double(apply(pred,2,'==',y))) * 100`
 
 ## Test
-```{r test}
+### Define
+<button class="hidecode" onclick="$(this).next().toggle();">Display Data Function</button>
+```{r display_data_function}
+displayData <- function(sel) {
+  width <- sqrt(ncol(sel))
+  mat <- matrix(sel, nrow = width, ncol = width)
+  mat <- rotate(mat)
+  image(mat, axes = FALSE, col = grey(seq(0, 1, length = 256))) 
+}
+```
+
+```{r test, echo=1}
 displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     # Select random image
     example <- t(matrix(X[sample(nrow(X), 1),]));
@@ -71,8 +124,9 @@ displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     return(c(predict(Theta1, Theta2, example)))
 }
 ```
-
-```{r test_shiny, echo=FALSE}
+### UI
+<button class="hidecode" onclick="$(this).next().toggle();">UI Functions</button>
+```{r ui_test, echo=1}
 renderPlot({
   input$updateButton
   
