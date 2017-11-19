@@ -1,12 +1,12 @@
 ---
 title: "Handwritten Digits Network"
 output:
-  html_notebook: 
+  html_document:
     code_folding: none
     number_sections: yes
     toc: yes
     toc_float: yes
-  html_document:
+  html_notebook: 
     code_folding: none
     number_sections: yes
     toc: yes
@@ -23,21 +23,26 @@ button.hideoutput + pre + pre {display: none}
 
 # Used libraries and includes
 ```{r setup, cache = TRUE, message = FALSE, warning = FALSE}
+library(keras)
+library(ggplot2)
+library(shiny)
 ```
 
 # Session Info
 <button class="hidecode hideoutput" onclick="$(this).next().toggle(); $(this).next().next().toggle();">Session Info</button>
 ```{r session_info, cache = TRUE}
 sessionInfo()
+(keras::backend())$backend()
 ```
 
 # Loading and Visualizing Data
 Loading data:
 ```{r loading_data, cache = TRUE}
+image_size <- 400
 data <- R.matlab::readMat('data/data.mat')
 X <- data[['X']]
 y <- data[['y']]
-m <- dim(X)[1]
+n <- nrow(X)
 ```
 
 Randomly select 100 data points to display:
@@ -66,8 +71,9 @@ displayDataArray <- function(sel) {
 displayDataArray(X[sample(nrow(X),size = 100),])
 ```
 
-# Already trained
-## Loading Parameters
+# Keras
+## Already trained
+### Loading Parameters
 Load the weights into variables Theta1 and Theta2
 ```{r loading_weights, cache = TRUE}
 weights <- R.matlab::readMat('data/weights.mat')
@@ -75,8 +81,42 @@ Theta1 <- weights[['Theta1']]
 Theta2 <- weights[['Theta2']]
 ```
 
-## Implement Predict
-Get prediction vector for each X value
+### Load Weight Functions
+<button class="hidecode" onclick="$(this).next().toggle();">Predict Function</button>
+```{r loading_weights_functions, cache = TRUE}
+set_layer_weights <- function(model, index, theta) {
+  current_weights <- model %>% get_layer(index = index) %>% get_weights()
+  current_weights[[1]] = t(theta[,2:ncol(theta)])
+  current_weights[[2]][] = c(theta[,1])[]
+  model %>% get_layer(index = index) %>% set_weights(current_weights)
+}
+```
+
+### Create Model And Load Weights
+```{r create_model_with_predefined_weights, cache = TRUE}
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 25, activation = "sigmoid", input_shape = c(image_size)) %>%
+  layer_dense(units = 10, activation = "sigmoid")
+
+model %>% set_layer_weights(1, Theta1)
+model %>% set_layer_weights(2, Theta2)
+
+summary(model)
+
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_adamax(),
+  metrics = c("accuracy")
+)
+```
+
+### Evuluate Model
+Training Set Accuracy: `r (model %>% evaluate(X, to_categorical(y - 1, 10),verbose = 0))$acc`
+
+## Implement Predict By Hand
+
+### Predict Function
 <button class="hidecode" onclick="$(this).next().toggle();">Predict Function</button>
 ```{r predict_function}
 sigmoid <- function(z) {
@@ -96,15 +136,80 @@ predict <- function(Theta1, Theta2, X) {
 }
 ```
 
-```{r predict}
-pred <- predict(Theta1, Theta2, X)
-```
-Training Set Accuracy: `r mean(as.double(apply(pred,2,'==',y))) * 100`
+### Evuluate Model
+Training Set Accuracy: `r mean(as.double(apply(predict(Theta1, Theta2, X),2,'==',y))) * 100`
 
-## Test
-### Define
+## My Model
+### Prepare data
+```{r, cache = TRUE}
+n_train <- round(0.8 * n)
+x_all <- X[sample(n),]
+y_all <- y[sample(n),] - 1
+x_train <- x_all[1:n_train,]
+y_train <- y_all[1:n_train]
+x_test <- x_all[(n_train + 1):n,]
+y_test <- y_all[(n_train + 1):n]
+
+# reshape
+dim(x_train) <- c(nrow(x_train), image_size)
+dim(x_test) <- c(nrow(x_test), image_size)
+
+# rescale
+#x_train <- x_train / 255
+#x_test <- x_test / 255
+
+y_train <- to_categorical(y_train, 10)
+y_test <- to_categorical(y_test, 10)
+```
+
+### Create model and compile
+```{r, cache = TRUE}
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 25, activation = "sigmoid", input_shape = c(image_size)) %>%
+  layer_dense(units = 10, activation = "sigmoid")
+
+model %>% compile(
+  loss = "mean_squared_error",
+  optimizer = optimizer_rmsprop(),
+  metrics = c("accuracy")
+)
+
+summary(model)
+```
+
+### Training and Evaluation
+```{r, cache = TRUE}
+history <- model %>% fit(
+  x_train,
+  y_train, 
+  epochs = 1,
+  batch_size = 1024, 
+  validation_data = list(x_test, y_test),
+  shuffle = TRUE,
+  #callbacks = callback_tensorboard("logs/run_a"),
+  verbose = 2
+)
+
+plot(history)
+```
+
+### Evaluate
+```{r, cache = TRUE}
+model %>% evaluate(x_test, y_test,verbose = 0)
+```
+
+### Generate prediction
+```{r, cache = TRUE}
+prediction_keras <- model %>% predict_classes(x_test)
+```
+
+# Test
+
+## By Hand
+## Display Functions
 <button class="hidecode" onclick="$(this).next().toggle();">Display Data Function</button>
-```{r display_data_function}
+```{r display_data_function, cache = TRUE}
 displayData <- function(sel) {
   width <- sqrt(ncol(sel))
   mat <- matrix(sel, nrow = width, ncol = width)
@@ -113,7 +218,7 @@ displayData <- function(sel) {
 }
 ```
 
-```{r test, echo=1}
+```{r test, cache = TRUE}
 displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     # Select random image
     example <- t(matrix(X[sample(nrow(X), 1),]));
@@ -125,9 +230,10 @@ displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     return(c(predict(Theta1, Theta2, example)))
 }
 ```
-### UI
+
 <button class="hidecode" onclick="$(this).next().toggle();">UI Functions</button>
-```{r ui_test, echo=1}
+```{r ui_test}
+library(shiny)
 renderPlot({
   input$updateButton
   
@@ -138,6 +244,35 @@ renderPlot({
 }, width = 200, height = 200)
 actionButton('updateButton', 'Update')
 textOutput('prediction')
+```
+
+## My Model
+```{r, cache = TRUE}
+displayRandomImageAndGetPredictionKeras <- function(x, y) {
+    # Select random image
+    i <- sample(nrow(x), 1)
+    example <- t(matrix(x[i,]));
+    
+    # Display
+    displayData(example);
+    
+    # Prediction
+    return(y[i])
+}
+```
+
+<button class="hidecode" onclick="$(this).next().toggle();">UI Functions</button>
+```{r}
+renderPlot({
+  input$updateButton2
+  
+  prediction <- displayRandomImageAndGetPredictionKeras(x_test, prediction_keras)
+  output$prediction2 <- renderText({ 
+    paste('Neural Network Prediction: ', prediction, '\n')
+  })
+}, width = 200, height = 200)
+actionButton('updateButton2', 'Update')
+textOutput('prediction2')
 ```
 
 # License
