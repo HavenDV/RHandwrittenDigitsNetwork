@@ -83,7 +83,7 @@ Theta2 <- weights[['Theta2']]
 
 ### Load Weight Functions
 <button class="hidecode" onclick="$(this).next().toggle();">Predict Function</button>
-```{r loading_weights_functions, cache = TRUE}
+```{r loading_weights_functions}
 set_layer_weights <- function(model, index, theta) {
   current_weights <- model %>% get_layer(index = index) %>% get_weights()
   current_weights[[1]] = t(theta[,2:ncol(theta)])
@@ -93,7 +93,7 @@ set_layer_weights <- function(model, index, theta) {
 ```
 
 ### Create Model And Load Weights
-```{r create_model_with_predefined_weights, cache = TRUE}
+```{r create_model_with_predefined_weights}
 model <- keras_model_sequential() 
 model %>% 
   layer_dense(units = 25, activation = "sigmoid", input_shape = c(image_size)) %>%
@@ -112,7 +112,10 @@ model %>% compile(
 ```
 
 ### Evuluate Model
-Training Set Accuracy: `r (model %>% evaluate(X, to_categorical(y - 1, 10),verbose = 0))$acc`
+```{r}
+accuracy <- (model %>% evaluate(X, to_categorical(y - 1, num_classes = 10),verbose = 0))$acc
+```
+Training Set Accuracy: `r accuracy`
 
 ## Implement Predict By Hand
 
@@ -137,54 +140,48 @@ predict <- function(Theta1, Theta2, X) {
 ```
 
 ### Evuluate Model
-Training Set Accuracy: `r mean(as.double(apply(predict(Theta1, Theta2, X),2,'==',y))) * 100`
+```{r}
+accuracy <- mean(as.double(apply(predict(Theta1, Theta2, X),2,'==',y))) * 100
+```
+Training Set Accuracy: `r accuracy`
 
 ## My Model
-### Prepare data
+### Dense Model
+#### Prepare Data
 ```{r, cache = TRUE}
 n_train <- round(0.8 * n)
-x_all <- X[sample(n),]
-y_all <- y[sample(n),] - 1
+shuffled <- sample(n);
+x_all <- X[shuffled,]
+y_all <- to_categorical(y[shuffled,] - 1, num_classes = 10)
 x_train <- x_all[1:n_train,]
-y_train <- y_all[1:n_train]
+y_train <- y_all[1:n_train,]
 x_test <- x_all[(n_train + 1):n,]
-y_test <- y_all[(n_train + 1):n]
-
-# reshape
-dim(x_train) <- c(nrow(x_train), image_size)
-dim(x_test) <- c(nrow(x_test), image_size)
-
-# rescale
-#x_train <- x_train / 255
-#x_test <- x_test / 255
-
-y_train <- to_categorical(y_train, 10)
-y_test <- to_categorical(y_test, 10)
+y_test <- y_all[(n_train + 1):n,]
 ```
 
-### Create model and compile
-```{r, cache = TRUE}
+#### Create model and compile
+```{r}
 model <- keras_model_sequential() 
 model %>% 
-  layer_dense(units = 25, activation = "sigmoid", input_shape = c(image_size)) %>%
-  layer_dense(units = 10, activation = "sigmoid")
+  layer_dense(units = 512, activation = "sigmoid", input_shape = c(image_size)) %>%
+  layer_dense(units = 10, activation = "softmax")
 
 model %>% compile(
-  loss = "mean_squared_error",
-  optimizer = optimizer_rmsprop(),
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_nadam(),
   metrics = c("accuracy")
 )
 
 summary(model)
 ```
 
-### Training and Evaluation
-```{r}
+#### Training and Evaluation
+```{r eval = 4, echo = 1}
 history <- model %>% fit(
   x_train,
   y_train, 
-  epochs = 8,
-  batch_size = 1024, 
+  epochs = 30,
+  batch_size = 32, 
   validation_data = list(x_test, y_test),
   shuffle = TRUE,
   #callbacks = callback_tensorboard("logs/run_a"),
@@ -192,24 +189,129 @@ history <- model %>% fit(
 )
 
 plot(history)
+
+model %>% save_model_hdf5("data/model.h5")
+model <- load_model_hdf5("data/model.h5")
 ```
 
-### Evaluate
-```{r, cache = TRUE}
-model %>% evaluate(x_test, y_test,verbose = 0)
+#### Evaluate
+```{r}
+accuracy <- (model %>% evaluate(x_test, y_test,verbose = 0))$acc
+```
+Training Set Accuracy: `r accuracy`
+
+#### Generate prediction
+```{r}
+prediction_dense <- model %>% predict_classes(x_test)
 ```
 
-### Generate prediction
+### Convolution Model
+#### Prepare Data
 ```{r, cache = TRUE}
-prediction_keras <- model %>% predict_classes(x_test)
+n_train <- round(0.8 * n)
+shuffled <- sample(n);
+x_prepare <- array(X[shuffled,], dim=c(n, 20, 20))
+x_all <- array(rep(1, length(x_prepare)), dim=c(n, 20, 20, 3))
+for (i in 1:3) {
+  x_all[,,,i] <- x_prepare
+}
+y_all <- to_categorical(y[shuffled,] - 1, num_classes = 10)
+x_train <- x_all[1:n_train,,,]
+y_train <- y_all[1:n_train,]
+x_test <- x_all[(n_train + 1):n,,,]
+y_test <- y_all[(n_train + 1):n,]
+dim(x_test)
+dim(y_test)
+```
+
+#### Create model and compile
+layer_max_pooling_2d - Reduces the dimentions and the computational complexity
+layer_dropout - Dropout layer to avoid overfitting
+layer_flatten - Flatten the input 
+```{r}
+model <- keras_model_sequential() 
+model %>% 
+  layer_conv_2d(filter = 32, kernel_size = c(3, 3), activation = "relu", input_shape = c(20, 20, 3)) %>% #, padding = "same"
+  layer_conv_2d(filter = 64, kernel_size = c(3, 3), activation = "relu")  %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  layer_dropout(0.25) %>%
+  layer_flatten() %>%
+  layer_dense(128, activation = "relu") %>%
+  layer_dropout(0.5) %>%
+  layer_dense(10, activation = "softmax")
+
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_adadelta(), #optimizer_adam(lr = 0.0001 , decay = 1e-6), #lr - learning rate, decay - learning rate decay over each update
+  metrics = c("accuracy")
+)
+
+summary(model)
+```
+
+#### Training and Evaluation
+```{r eval = 4, echo = 1}
+history <- model %>% fit(
+  x_train,
+  y_train, 
+  epochs = 30,
+  batch_size = 128, 
+  validation_data = list(x_test, y_test),
+  shuffle = TRUE
+)
+
+plot(history)
+
+model %>% save_model_hdf5("data/CNN.h5")
+model <- load_model_hdf5("data/CNN.h5")
+```
+
+#### Generating images
+```{r}
+gen_images <- image_data_generator(
+  #featurewise_center = TRUE,
+  #featurewise_std_normalization = TRUE,
+  rotation_range = 15,
+  width_shift_range = 0.15,
+  height_shift_range = 0.15,
+  zoom_range = 0.15
+)
+#Fit image data generator internal statistics to some sample data
+gen_images %>% fit_image_data_generator(x_train)
+#Generates batches of augmented/normalized data from image data and #labels to visually see the generated images by the Model
+batches <- flow_images_from_data(
+  x_all, 
+  y_all, 
+  gen_images,
+  batch_size = 32
+  #save_to_dir="~/HandwrittenDigitsNetwork/generated_images/"
+)
+model %>% fit_generator(
+     batches,
+     steps_per_epoch = as.integer(4000/32),
+     epochs = 30,
+     validation_data = list(x_test, y_test)
+)
+
+model %>% save_model_hdf5("data/CNN.h5")
+```
+
+#### Evaluate
+```{r}
+accuracy <- (model %>% evaluate(x_test, y_test,verbose = 0))$acc
+```
+Training Set Accuracy: `r accuracy`
+
+#### Generate prediction
+```{r}
+prediction_conv <- model %>% predict_classes(x_test)
 ```
 
 # Test
 
 ## By Hand
-## Display Functions
 <button class="hidecode" onclick="$(this).next().toggle();">Display Data Function</button>
-```{r display_data_function, cache = TRUE}
+```{r display_data_function}
 displayData <- function(sel) {
   width <- sqrt(ncol(sel))
   mat <- matrix(sel, nrow = width, ncol = width)
@@ -218,7 +320,7 @@ displayData <- function(sel) {
 }
 ```
 
-```{r test, cache = TRUE}
+```{r test}
 displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
     # Select random image
     example <- t(matrix(X[sample(nrow(X), 1),]));
@@ -232,8 +334,7 @@ displayRandomImageAndGetPrediction <- function(Theta1, Theta2, X) {
 ```
 
 <button class="hidecode" onclick="$(this).next().toggle();">UI Functions</button>
-```{r ui_test}
-library(shiny)
+```{r}
 renderPlot({
   input$updateButton
   
@@ -246,8 +347,8 @@ actionButton('updateButton', 'Update')
 textOutput('prediction')
 ```
 
-## My Model
-```{r, cache = TRUE}
+## My Dense Model
+```{r}
 displayRandomImageAndGetPredictionKeras <- function(x, y) {
     # Select random image
     i <- sample(nrow(x), 1)
@@ -266,7 +367,7 @@ displayRandomImageAndGetPredictionKeras <- function(x, y) {
 renderPlot({
   input$updateButton2
   
-  prediction <- displayRandomImageAndGetPredictionKeras(x_test, prediction_keras)
+  prediction <- displayRandomImageAndGetPredictionKeras(x_test, prediction_dense)
   output$prediction2 <- renderText({ 
     paste('Neural Network Prediction: ', prediction, '\n')
   })
